@@ -21,9 +21,12 @@ class MCPClient {
     this.anthropic = new Anthropic({
       apiKey: ANTHROPIC_API_KEY,
     });
-    this.mcpClient = new Client({ name: "mcp-client-cli", version: "1.0.0" });
+
+    this.client = new Client({ name: "mcp-client-cli", version: "1.0.0" });
     this.stidoClientTransport = null;
+    
     this.tools = [];
+    this.toolsServerMap = new Map(); // Map to store tools and their server
   }
 
   // The mcp server is like:
@@ -36,24 +39,34 @@ class MCPClient {
       });
 
       // Connect!
-      await this.mcpClient.connect(this.stidoClientTransport);
-
-      // List available tools
-      const toolsResult = await this.mcpClient.listTools();
-      const newTools = toolsResult.tools.map((tool) => {
-        return {
-          name: tool.name,
-          description: tool.description,
-          input_schema: tool.inputSchema,
-        };
-      });
-      this.tools = [...this.tools, ...newTools];
-
-      console.log("Connected to server: " + serverName);
-      console.log("Listing tools: ", JSON.stringify(this.tools, null, 2));
+      console.log("Connecting to server: " + serverName + ", server config: " + JSON.stringify(mcpServerConfig, null, 2));
+      await this.client.connect(this.stidoClientTransport);
+      console.log("Connected.");
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
+    }
+  }
+
+  async detectNewTools() {
+    // List available tools in current server
+    const toolsResult = await this.client.listTools();
+    const currentServerTools = toolsResult.tools.map((tool) => {
+      return {
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.inputSchema,
+      };
+    });
+
+    // Check current tools list
+    // If the tool is already in the list, skip adding it
+    for (const tool of currentServerTools) {
+      if (!this.tools.some((t) => t.name === tool.name)) {
+        console.log("New tool detected: " + JSON.stringify(tool, null, 2)); 
+        this.tools.push(tool);
+        this.toolsServerMap.set(tool.name, this.currentServerName); // Map tool to server
+      }
     }
   }
 
@@ -85,7 +98,7 @@ class MCPClient {
         const toolName = content.name;
         const toolArgs = content.input;
 
-        const result = await this.mcpClient.callTool({
+        const result = await this.client.callTool({
           name: toolName,
           arguments: toolArgs,
         });
@@ -124,7 +137,12 @@ class MCPClient {
     });
 
     try {
-      console.log("\nMCP Client Started!");
+      console.log("\nChat loop started.");
+      console.log("Available tools: ");
+      this.tools.forEach((tool) => {
+        console.log(`- ${tool.name}: ${tool.description}`);
+      });
+
       console.log("Type your queries or 'quit' to exit.");
 
       while (true) {
@@ -141,7 +159,7 @@ class MCPClient {
   }
 
   async cleanup() {
-    await this.mcpClient.close();
+    await this.client.close();
   }
 }
 
@@ -168,9 +186,12 @@ async function main() {
   try {
     for (let mcpServer in mcpServers) {
       console.log("Connecting to MCP server: ", mcpServer);
+      
       const mcpServerConfig = mcpServers[mcpServer];
       console.log("Server config: ", mcpServerConfig);
+
       await mcpClient.connectToServer(mcpServer, mcpServerConfig);
+      await mcpClient.detectNewTools();
     }
     
     await mcpClient.chatLoop();
