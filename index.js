@@ -30,6 +30,7 @@ class MCPClient {
       if (!isJs && !isPy) {
         throw new Error("Server script must be a .js or .py file");
       }
+
       const command = isPy
         ? process.platform === "win32"
           ? "python"
@@ -42,7 +43,7 @@ class MCPClient {
         args: [serverScriptPath],
       });
 
-      this.mcpClient.connect(this.stidoClientTransport);
+      await this.mcpClient.connect(this.stidoClientTransport);
 
       // List available tools
       const toolsResult = await this.mcpClient.listTools();
@@ -56,7 +57,6 @@ class MCPClient {
 
       console.log("Connected to server: " + serverScriptPath);
       console.log("Tools: ", JSON.stringify(this.tools, null, 2));
-
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
@@ -162,7 +162,9 @@ async function main() {
 
   const mcpClient = new MCPClient();
   try {
-    await mcpClient.connectToServer(mcpServers[0]);
+    for (const mcpServer of mcpServers) {
+      await mcpClient.connectToServer(mcpServer);
+    }
     await mcpClient.chatLoop();
   } finally {
     await mcpClient.cleanup();
