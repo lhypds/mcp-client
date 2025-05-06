@@ -4,25 +4,29 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import readline from "readline/promises";
 import dotenv from "dotenv";
-import fs from "fs";
 import { loadMcpConfig } from "./utils/mcpUtils.js";
 
 
 dotenv.config(); // load environment variables from .env
 const model = "claude-3-5-sonnet-20241022";
 
-
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) {
   throw new Error("ANTHROPIC_API_KEY is not set");
 }
 
+const anthropic = new Anthropic({
+  apiKey: ANTHROPIC_API_KEY,
+});
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+
 class MCPClient {
   constructor() {
-    // Initialize Anthropic client and MCP client
-    this.anthropic = new Anthropic({
-      apiKey: ANTHROPIC_API_KEY,
-    });
     this.servers = new Map();
     this.tools = [];
   }
@@ -62,78 +66,26 @@ class MCPClient {
     }
   }
 
-  async processQuery(query) {
-    const messages = [
-      {
-        role: "user",
-        content: query,
-      },
-    ];
-
-    // Initial Claude API call
-    const response = await this.anthropic.messages.create({
-      model: model,
-      max_tokens: 1000,
-      messages,
-      tools: this.tools,
-    });
-
-    // Process response and handle tool calls
-    const finalText = [];
-    const toolResults = [];
-
-    for (const content of response.content) {
-      if (content.type === "text") {
-        finalText.push(content.text);
-      }
-      
-      if (content.type === "tool_use") {
-        // Execute tool call
-        const toolName = content.name;
-        const toolArgs = content.input;
-
-        // Find server, and use the correct one to call the tool
-        let server = null;
-        // Loop through servers to find the one that has the tool
-        for (let [serverName, s] of this.servers) {
-          if (s.tools.some((t) => t.name === toolName)) {
-            server = s;
-            break;
-          }
-        }
-        if (!server) {
-          throw new Error(`Server not found for tool: ${toolName}`);
-        }
-        const result = await server.client.callTool({
-          name: toolName,
-          arguments: toolArgs,
-        });
-
-        toolResults.push(result);
-        finalText.push(
-          `[Calling tool ${toolName} with args ${JSON.stringify(toolArgs)}]`,
-        );
-
-        // Continue conversation with tool results
-        messages.push({
-          role: "user",
-          content: result.content,
-        });
-
-        // Get next response from Claude
-        const response2 = await this.anthropic.messages.create({
-          model: "claude-3-5-sonnet-20241022",
-          max_tokens: 1000,
-          messages,
-        });
-
-        finalText.push(
-          response2.content[0].type === "text" ? response2.content[0].text : "",
-        );
+  async callTool(toolName, toolArgs) {
+    // Find server, and use the correct one to call the tool
+    let callServer = null;
+    // Loop through servers to find the one that has the tool
+    for (let [, s] of this.servers) {
+      if (s.tools.some((t) => t.name === toolName)) {
+        callServer = s;
+        break;
       }
     }
 
-    return finalText.join("\n");
+    if (!callServer) {
+      throw new Error(`Server not found for tool: ${toolName}`);
+    }
+    
+    const result = await callServer.client.callTool({
+      name: toolName,
+      arguments: toolArgs,
+    });
+    return result;
   }
 
   async cleanup() {
@@ -154,17 +106,59 @@ async function main() {
     }
     
     // Start a chat loop
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
     while (true) {
-      const message = await rl.question(model + "> ");
-      if (message.toLowerCase() === "quit") {
-        break;
+      const userInput = await rl.question(model + "> ");
+      
+      // Process query
+      const response = await anthropic.messages.create({
+        model: model,
+        max_tokens: 1000,
+        messages: [{
+          role: "user",
+          content: userInput,
+        }],
+        tools: mcpClient.tools,
+      });
+
+      // Process response and handle tool calls
+      const textResults = [];
+      const toolResults = [];
+      for (const content of response.content) {
+        if (content.type === "text") {
+          textResults.push(content.text);
+        }
+        
+        if (content.type === "tool_use") {
+          // Execute tool call
+          const toolName = content.name;
+          const toolArgs = content.input;
+
+          const result = await this.callTool(toolName, toolArgs);
+
+          toolResults.push(result);
+          textResults.push(
+            `[Calling tool ${toolName} with args ${JSON.stringify(toolArgs)}]`,
+          );
+
+          // Continue conversation with tool results
+          messages.push({
+            role: "user",
+            content: result.content,
+          });
+
+          // Get next response from Claude
+          const response2 = await anthropic.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 1000,
+            messages,
+          });
+
+          textResults.push(
+            response2.content[0].type === "text" ? response2.content[0].text : "",
+          );
+        }
       }
-      const response = await mcpClient.processQuery(message);
-      console.log(response.trim() + "\n");
+      console.log(textResults.join("\n").trim() + "\n");
     }
   } catch (e) {
     console.error("Error:", e.message);
