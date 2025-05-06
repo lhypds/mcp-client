@@ -17,8 +17,8 @@ class MCPClient {
     this.anthropic = new Anthropic({
       apiKey: ANTHROPIC_API_KEY,
     });
-    this.mcp = new Client({ name: "mcp-client-cli", version: "1.0.0" });
-    this.transport = null;
+    this.mcpClient = new Client({ name: "mcp-client-cli", version: "1.0.0" });
+    this.stidoClientTransport = null;
     this.tools = [];
   }
 
@@ -37,14 +37,15 @@ class MCPClient {
         : process.execPath;
 
       // Initialize transport and connect to server
-      this.transport = new StdioClientTransport({
+      this.stidoClientTransport = new StdioClientTransport({
         command,
         args: [serverScriptPath],
       });
-      this.mcp.connect(this.transport);
+
+      this.mcpClient.connect(this.stidoClientTransport);
 
       // List available tools
-      const toolsResult = await this.mcp.listTools();
+      const toolsResult = await this.mcpClient.listTools();
       this.tools = toolsResult.tools.map((tool) => {
         return {
           name: tool.name,
@@ -52,10 +53,10 @@ class MCPClient {
           input_schema: tool.inputSchema,
         };
       });
-      console.log(
-        "Connected to server with tools:",
-        this.tools.map(({ name }) => name),
-      );
+
+      console.log("Connected to server: " + serverScriptPath);
+      console.log("Tools: ", JSON.stringify(this.tools, null, 2));
+
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
@@ -90,7 +91,7 @@ class MCPClient {
         const toolName = content.name;
         const toolArgs = content.input;
 
-        const result = await this.mcp.callTool({
+        const result = await this.mcpClient.callTool({
           name: toolName,
           arguments: toolArgs,
         });
@@ -145,7 +146,7 @@ class MCPClient {
   }
 
   async cleanup() {
-    await this.mcp.close();
+    await this.mcpClient.close();
   }
 }
 
