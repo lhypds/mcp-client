@@ -38,7 +38,13 @@ class MCPClient {
 
       await client.connect(transport);
       const toolsResult = await client.listTools();
-      const tools = toolsResult.tools;
+      const tools = toolsResult.tools.map((tool) => {
+        return {
+          name: serverName + "." + tool.name,  // Add server name prefix to tool name
+          description: tool.description,
+          input_schema: tool.inputSchema, // !important
+        };
+      });
 
       this.servers.set(serverName, {
         client: client,
