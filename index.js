@@ -22,11 +22,11 @@ class MCPClient {
     this.tools = [];
   }
 
-  async connectToServer(serverScriptPath) {
+  async connectToServer(serverScriptPaths) {
     try {
       // Determine script type and appropriate command
-      const isJs = serverScriptPath.endsWith(".js");
-      const isPy = serverScriptPath.endsWith(".py");
+      const isJs = serverScriptPaths.endsWith(".js");
+      const isPy = serverScriptPaths.endsWith(".py");
       if (!isJs && !isPy) {
         throw new Error("Server script must be a .js or .py file");
       }
@@ -39,7 +39,7 @@ class MCPClient {
       // Initialize transport and connect to server
       this.stidoClientTransport = new StdioClientTransport({
         command,
-        args: [serverScriptPath],
+        args: [serverScriptPaths],
       });
 
       this.mcpClient.connect(this.stidoClientTransport);
@@ -54,7 +54,7 @@ class MCPClient {
         };
       });
 
-      console.log("Connected to server: " + serverScriptPath);
+      console.log("Connected to server: " + serverScriptPaths);
       console.log("Tools: ", JSON.stringify(this.tools, null, 2));
 
     } catch (e) {
@@ -151,13 +151,18 @@ class MCPClient {
 }
 
 async function main() {
-  if (process.argv.length < 3) {
-    console.log("Usage: node build/index.js <path_to_server_script>");
-    return;
+  let mcpServers = [];
+
+  if (process.argv.length == 2) {
+    // Read server from JSON file
+  } else if (process.argv.length == 3) {
+    // Read server from command line argument
+    mcpServers = [process.argv[2]];
   }
+
   const mcpClient = new MCPClient();
   try {
-    await mcpClient.connectToServer(process.argv[2]);
+    await mcpClient.connectToServer(mcpServers[0]);
     await mcpClient.chatLoop();
   } finally {
     await mcpClient.cleanup();
