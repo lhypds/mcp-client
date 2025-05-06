@@ -3,6 +3,10 @@
     "time": {
       "command": "node",
       "args": ["C:\\code\\mcp-server-time\\index.js"]
+    },
+    "weather": {
+      "command": "node",
+      "args": ["C:\\code\\mcp-server-weather\\index.js"]
     }
   }
 }

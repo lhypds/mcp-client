@@ -27,12 +27,12 @@ class MCPClient {
   }
 
   // The mcp server is like:
-  async connectToServer(mcpServer) {
+  async connectToServer(serverName, mcpServerConfig) {
     try {
       // Initialize transport and connect to server
       this.stidoClientTransport = new StdioClientTransport({
-        command: mcpServer.command,
-        args: mcpServer.args,
+        command: mcpServerConfig.command,
+        args: mcpServerConfig.args,
       });
 
       // Connect!
@@ -48,7 +48,7 @@ class MCPClient {
         };
       });
 
-      console.log("Connected to server: " + mcpServer);
+      console.log("Connected to server: " + serverName);
       console.log("Listing tools: ", JSON.stringify(this.tools, null, 2));
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
@@ -151,7 +151,7 @@ async function main() {
     const mcpConfig = JSON.parse(
       await fs.promises.readFile("mcp_config.json", "utf-8"),
     );
-    console.log("MCP Config: ", mcpConfig);
+    console.log("MCP Config: ", JSON.stringify(mcpConfig, null, 2));
 
     mcpServers = mcpConfig.mcpServers;
     if (!mcpServers || mcpServers.length === 0) {
@@ -168,8 +168,9 @@ async function main() {
       console.log("Connecting to MCP server: ", mcpServer);
       const mcpServerConfig = mcpServers[mcpServer];
       console.log("Server config: ", mcpServerConfig);
-      await mcpClient.connectToServer(mcpServerConfig);
+      await mcpClient.connectToServer(mcpServer, mcpServerConfig);
     }
+    
     await mcpClient.chatLoop();
   } finally {
     await mcpClient.cleanup();
