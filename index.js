@@ -132,10 +132,7 @@ class MCPClient {
 
     try {
       console.log("\nChat loop started.");
-      console.log("Available tools: ");
-      this.tools.forEach((tool) => {
-        console.log(JSON.stringify(tool, null, 2));
-      });
+      console.log("Available tools: " + this.tools.join(", "));
 
       console.log("\nType your queries or 'quit' to exit.");
       while (true) {
