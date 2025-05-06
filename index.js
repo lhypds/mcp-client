@@ -39,6 +39,7 @@ class MCPClient {
       await client.connect(transport);
       const toolsResult = await client.listTools();
       const tools = toolsResult.tools.map((tool) => {
+        // Tools listing result parameter mapping, important!
         return {
           name: serverName + "." + tool.name,  // Add server name prefix to tool name
           description: tool.description,
