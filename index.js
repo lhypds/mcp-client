@@ -79,6 +79,14 @@ class MCPClient {
       },
     ];
 
+    const req = {
+      model: model,
+      max_tokens: 1000,
+      messages,
+      tools: this.tools,
+    };
+    console.log("Request: ", JSON.stringify(req, null, 2)); // Log the request
+
     // Initial Claude API call
     const response = await this.anthropic.messages.create({
       model: model,
