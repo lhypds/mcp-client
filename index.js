@@ -50,7 +50,7 @@ class MCPClient {
       for (const tool of tools) {
         if (!this.tools.some((t) => t.name === tool.name)) {
           console.log("New tool found: " + JSON.stringify(tool, null, 2)); 
-          this.tools.push(serverName + "." + tool.name);
+          this.tools.push(tool);
         }
       }
     } catch (e) {
@@ -66,6 +66,14 @@ class MCPClient {
         content: query,
       },
     ];
+
+    const req = {
+      model: model,
+      max_tokens: 1000,
+      messages,
+      tools: this.tools,
+    };
+    console.log("Request: ", JSON.stringify(req, null, 2)); // Log the request
 
     // Initial Claude API call
     const response = await this.anthropic.messages.create({
