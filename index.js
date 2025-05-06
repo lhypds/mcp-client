@@ -1,10 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import readline from "readline/promises";
 import dotenv from "dotenv";
+import fs from "fs";
+
 
 dotenv.config(); // load environment variables from .env
+
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) {
@@ -22,27 +26,16 @@ class MCPClient {
     this.tools = [];
   }
 
-  async connectToServer(serverScriptPath) {
+  // The mcp server is like:
+  async connectToServer(mcpServer) {
     try {
-      // Determine script type and appropriate command
-      const isJs = serverScriptPath.endsWith(".js");
-      const isPy = serverScriptPath.endsWith(".py");
-      if (!isJs && !isPy) {
-        throw new Error("Server script must be a .js or .py file");
-      }
-
-      const command = isPy
-        ? process.platform === "win32"
-          ? "python"
-          : "python3"
-        : process.execPath;
-
       // Initialize transport and connect to server
       this.stidoClientTransport = new StdioClientTransport({
-        command,
-        args: [serverScriptPath],
+        command: mcpServer.command,
+        args: mcpServer.args,
       });
 
+      // Connect!
       await this.mcpClient.connect(this.stidoClientTransport);
 
       // List available tools
@@ -55,8 +48,8 @@ class MCPClient {
         };
       });
 
-      console.log("Connected to server: " + serverScriptPath);
-      console.log("Tools: ", JSON.stringify(this.tools, null, 2));
+      console.log("Connected to server: " + mcpServer);
+      console.log("Listing tools: ", JSON.stringify(this.tools, null, 2));
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
@@ -153,17 +146,29 @@ class MCPClient {
 async function main() {
   let mcpServers = [];
 
-  if (process.argv.length == 2) {
-    // Read server from JSON file
-  } else if (process.argv.length == 3) {
-    // Read server from command line argument
-    mcpServers = [process.argv[2]];
+  // Read mcpServers from JSON `mcp_config.json` file
+  try {
+    const mcpConfig = JSON.parse(
+      await fs.promises.readFile("mcp_config.json", "utf-8"),
+    );
+    console.log("MCP Config: ", mcpConfig);
+
+    mcpServers = mcpConfig.mcpServers;
+    if (!mcpServers || mcpServers.length === 0) {
+      throw new Error("No MCP servers found.");
+    }
+  } catch (e) {
+    console.error("Failed to read mcp_config.json: ", e);
+    process.exit(1);
   }
 
   const mcpClient = new MCPClient();
   try {
-    for (const mcpServer of mcpServers) {
-      await mcpClient.connectToServer(mcpServer);
+    for (let mcpServer in mcpServers) {
+      console.log("Connecting to MCP server: ", mcpServer);
+      const mcpServerConfig = mcpServers[mcpServer];
+      console.log("Server config: ", mcpServerConfig);
+      await mcpClient.connectToServer(mcpServerConfig);
     }
     await mcpClient.chatLoop();
   } finally {

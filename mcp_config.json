@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "time": {
+      "command": "node",
+      "args": ["C:\\code\\mcp-server-time\\index.js"]
+    }
+  }
+}
