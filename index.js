@@ -22,11 +22,11 @@ class MCPClient {
     this.tools = [];
   }
 
-  async connectToServer(serverScriptPaths) {
+  async connectToServer(serverScriptPath) {
     try {
       // Determine script type and appropriate command
-      const isJs = serverScriptPaths.endsWith(".js");
-      const isPy = serverScriptPaths.endsWith(".py");
+      const isJs = serverScriptPath.endsWith(".js");
+      const isPy = serverScriptPath.endsWith(".py");
       if (!isJs && !isPy) {
         throw new Error("Server script must be a .js or .py file");
       }
@@ -39,7 +39,7 @@ class MCPClient {
       // Initialize transport and connect to server
       this.stidoClientTransport = new StdioClientTransport({
         command,
-        args: [serverScriptPaths],
+        args: [serverScriptPath],
       });
 
       this.mcpClient.connect(this.stidoClientTransport);
@@ -54,7 +54,7 @@ class MCPClient {
         };
       });
 
-      console.log("Connected to server: " + serverScriptPaths);
+      console.log("Connected to server: " + serverScriptPath);
       console.log("Tools: ", JSON.stringify(this.tools, null, 2));
 
     } catch (e) {
