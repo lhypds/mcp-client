@@ -41,7 +41,7 @@ class MCPClient {
       const tools = toolsResult.tools.map((tool) => {
         // Tools listing result parameter mapping, important!
         return {
-          name: serverName + "." + tool.name,  // Add server name prefix to tool name
+          name: tool.name,  // Add server name prefix to tool name
           description: tool.description,
           input_schema: tool.inputSchema, // !important
         };
@@ -53,10 +53,11 @@ class MCPClient {
         tools: tools,
       });
 
-      // Store tools
+      // Store server tools to global tools list
       for (const tool of tools) {
         if (!this.tools.some((t) => t.name === tool.name)) {
           console.log("New tool found: " + JSON.stringify(tool, null, 2)); 
+          tool.name = `${serverName}.${tool.name}`; // Prefix tool name with server name
           this.tools.push(tool);
         }
       }
