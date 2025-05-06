@@ -28,10 +28,10 @@ const rl = readline.createInterface({
 class MCPClient {
   constructor() {
     this.servers = new Map();
-    this.tools = [];
+    this.tools = [];  // global tools list
   }
 
-  // The mcp server is like:
+  // Connect to MCP server
   async connectToServer(serverName, mcpServerConfig) {
     try {
       const client = new Client({ name: serverName, version: "0.0.1" });
@@ -66,10 +66,10 @@ class MCPClient {
     }
   }
 
+  // Call tool
   async callTool(toolName, toolArgs) {
     // Find server, and use the correct one to call the tool
     let callServer = null;
-    // Loop through servers to find the one that has the tool
     for (let [, s] of this.servers) {
       if (s.tools.some((t) => t.name === toolName)) {
         callServer = s;
@@ -89,7 +89,12 @@ class MCPClient {
   }
 
   async cleanup() {
-    await this.client.close();
+    for (let [, s] of this.servers) {
+      await s.client.close();
+      await s.transport.close();
+    }
+    this.servers.clear();
+    this.tools = [];
   }
 }
 
@@ -106,8 +111,12 @@ async function main() {
     }
     
     // Start a chat loop
+    console.log("Type ':exit' to exit the chat.");
     while (true) {
       const userInput = await rl.question(model + "> ");
+      if (userInput === ":exit") {
+        break;
+      }
       
       // Process query
       const response = await anthropic.messages.create({
@@ -164,7 +173,9 @@ async function main() {
     console.error("Error:", e.message);
     process.exit(1);
   } finally {
-    if (mcpClient) await mcpClient.cleanup();
+    if (mcpClient) {
+      await mcpClient.cleanup();
+    }
     process.exit(0);
   }
 }
