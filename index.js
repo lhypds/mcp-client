@@ -39,28 +39,23 @@ class MCPClient {
       await client.connect(transport);
       const toolsResult = await client.listTools();
       const tools = toolsResult.tools.map((tool) => {
-        // Tools listing result parameter mapping, important!
+        // Tools listing result parameter mapping
         return {
-          name: tool.name,  // Add server name prefix to tool name
+          name: tool.name,
           description: tool.description,
           input_schema: tool.inputSchema, // !important
         };
       });
 
+      // Store server
       this.servers.set(serverName, {
         client: client,
         transport: transport,
         tools: tools,
       });
 
-      // Store server tools to global tools list
-      for (const tool of tools) {
-        if (!this.tools.some((t) => t.name === tool.name)) {
-          console.log("New tool found: " + JSON.stringify(tool, null, 2)); 
-          tool.name = `${serverName}.${tool.name}`; // Prefix tool name with server name
-          this.tools.push(tool);
-        }
-      }
+      // Store tool in global tools list
+      this.tools = [...this.tools, ...tools];
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
@@ -80,13 +75,7 @@ class MCPClient {
       model: model,
       max_tokens: 1000,
       messages,
-      tools: this.tools.map((tool) => {
-        return {
-          name: tool.name.split(".")[1], // Remove server name prefix
-          description: tool.description,
-          input_schema: tool.input_schema,
-        };
-      }),
+      tools: this.tools,
     });
 
     // Process response and handle tool calls
@@ -103,13 +92,11 @@ class MCPClient {
         const toolName = content.name;
         const toolArgs = content.input;
 
-        // Find server
+        // Find server, and use the correct one to call the tool
         let server = null;
         // Loop through servers to find the one that has the tool
         for (let [serverName, s] of this.servers) {
-          // Global tool name is like: serverName.toolName
-          // toolName is like: toolName
-          if (s.tools.some((t) => t.name.includes(toolName))) {
+          if (s.tools.some((t) => t.name === toolName)) {
             server = s;
             break;
           }
@@ -117,7 +104,6 @@ class MCPClient {
         if (!server) {
           throw new Error(`Server not found for tool: ${toolName}`);
         }
-
         const result = await server.client.callTool({
           name: toolName,
           arguments: toolArgs,
@@ -150,30 +136,6 @@ class MCPClient {
     return finalText.join("\n");
   }
 
-  async chatLoop() {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-
-    try {
-      console.log("\nChat loop started.");
-      console.log("Available tools: " + this.tools.map((tool) => tool.name).join(", "));
-
-      console.log("\nType your queries or 'quit' to exit.");
-      while (true) {
-        const message = await rl.question(model + "> ");
-        if (message.toLowerCase() === "quit") {
-          break;
-        }
-        const response = await this.processQuery(message);
-        console.log(response.trim() + "\n");
-      }
-    } finally {
-      rl.close();
-    }
-  }
-
   async cleanup() {
     await this.client.close();
   }
@@ -191,7 +153,19 @@ async function main() {
       await mcpClient.connectToServer(mcpServerConfig, serverConfig);
     }
     
-    await mcpClient.chatLoop();
+    // Start a chat loop
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    while (true) {
+      const message = await rl.question(model + "> ");
+      if (message.toLowerCase() === "quit") {
+        break;
+      }
+      const response = await mcpClient.processQuery(message);
+      console.log(response.trim() + "\n");
+    }
   } catch (e) {
     console.error("Error:", e.message);
     process.exit(1);
