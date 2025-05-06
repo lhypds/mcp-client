@@ -8,6 +8,7 @@ import fs from "fs";
 
 
 dotenv.config(); // load environment variables from .env
+const model = "claude-3-5-sonnet-20241022";
 
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -80,7 +81,7 @@ class MCPClient {
 
     // Initial Claude API call
     const response = await this.anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: model,
       max_tokens: 1000,
       messages,
       tools: this.tools,
@@ -140,18 +141,17 @@ class MCPClient {
       console.log("\nChat loop started.");
       console.log("Available tools: ");
       this.tools.forEach((tool) => {
-        console.log(`- ${tool.name}: ${tool.description}`);
+        console.log(`${tool.name}: ${tool.description}`);
       });
 
-      console.log("Type your queries or 'quit' to exit.");
-
+      console.log("\nType your queries or 'quit' to exit.");
       while (true) {
-        const message = await rl.question("\nQuery: ");
+        const message = await rl.question(model + ">: ");
         if (message.toLowerCase() === "quit") {
           break;
         }
         const response = await this.processQuery(message);
-        console.log("\n" + response);
+        console.log(response.trim() + "\n");
       }
     } finally {
       rl.close();
