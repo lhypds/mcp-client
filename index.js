@@ -50,7 +50,7 @@ class MCPClient {
       for (const tool of tools) {
         if (!this.tools.some((t) => t.name === tool.name)) {
           console.log("New tool found: " + JSON.stringify(tool, null, 2)); 
-          this.tools.push("@" + serverName + "/" + tool.name);
+          this.tools.push(serverName + "." + tool.name);
         }
       }
     } catch (e) {
@@ -87,21 +87,19 @@ class MCPClient {
         const toolName = content.name;
         const toolArgs = content.input;
 
-        const serverName = toolName.split("/")[0].substring(1); // Remove '@'
-        const serverToolName = toolName.split("/")[1];
-        const server = this.servers.get(serverName);
+        const server = this.servers.get(toolName.split(".")[0]);
         if (!server) {
-          throw new Error(`Server ${serverName} not found`);
+          throw new Error(`Server not found.`);
         }
 
         const result = await server.client.callTool({
-          name: serverToolName,
+          name: toolName.split(".")[1],
           arguments: toolArgs,
         });
 
         toolResults.push(result);
         finalText.push(
-          `[Calling tool ${serverToolName} with args ${JSON.stringify(toolArgs)}]`,
+          `[Calling tool ${toolName} with args ${JSON.stringify(toolArgs)}]`,
         );
 
         // Continue conversation with tool results
