@@ -75,20 +75,18 @@ class MCPClient {
       },
     ];
 
-    const req = {
-      model: model,
-      max_tokens: 1000,
-      messages,
-      tools: this.tools,
-    };
-    console.log("Request: ", JSON.stringify(req, null, 2)); // Log the request
-
     // Initial Claude API call
     const response = await this.anthropic.messages.create({
       model: model,
       max_tokens: 1000,
       messages,
-      tools: this.tools,
+      tools: this.tools.map((tool) => {
+        return {
+          name: tool.name.split(".")[1], // Remove server name prefix
+          description: tool.description,
+          input_schema: tool.input_schema,
+        };
+      }),
     });
 
     // Process response and handle tool calls
@@ -98,18 +96,30 @@ class MCPClient {
     for (const content of response.content) {
       if (content.type === "text") {
         finalText.push(content.text);
-      } else if (content.type === "tool_use") {
+      }
+      
+      if (content.type === "tool_use") {
         // Execute tool call
         const toolName = content.name;
         const toolArgs = content.input;
 
-        const server = this.servers.get(toolName.split(".")[0]);
+        // Find server
+        let server = null;
+        // Loop through servers to find the one that has the tool
+        for (let [serverName, s] of this.servers) {
+          // Global tool name is like: serverName.toolName
+          // toolName is like: toolName
+          if (s.tools.some((t) => t.name.includes(toolName))) {
+            server = s;
+            break;
+          }
+        }
         if (!server) {
-          throw new Error(`Server not found.`);
+          throw new Error(`Server not found for tool: ${toolName}`);
         }
 
         const result = await server.client.callTool({
-          name: toolName.split(".")[1],
+          name: toolName,
           arguments: toolArgs,
         });
 
@@ -148,11 +158,11 @@ class MCPClient {
 
     try {
       console.log("\nChat loop started.");
-      console.log("Available tools: " + this.tools.join(", "));
+      console.log("Available tools: " + this.tools.map((tool) => tool.name).join(", "));
 
       console.log("\nType your queries or 'quit' to exit.");
       while (true) {
-        const message = await rl.question(model + ">: ");
+        const message = await rl.question(model + "> ");
         if (message.toLowerCase() === "quit") {
           break;
         }
