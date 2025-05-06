@@ -40,13 +40,14 @@ class MCPClient {
 
       // List available tools
       const toolsResult = await this.mcpClient.listTools();
-      this.tools = toolsResult.tools.map((tool) => {
+      const newTools = toolsResult.tools.map((tool) => {
         return {
           name: tool.name,
           description: tool.description,
           input_schema: tool.inputSchema,
         };
       });
+      this.tools = [...this.tools, ...newTools];
 
       console.log("Connected to server: " + serverName);
       console.log("Listing tools: ", JSON.stringify(this.tools, null, 2));
@@ -88,6 +89,7 @@ class MCPClient {
           name: toolName,
           arguments: toolArgs,
         });
+
         toolResults.push(result);
         finalText.push(
           `[Calling tool ${toolName} with args ${JSON.stringify(toolArgs)}]`,
