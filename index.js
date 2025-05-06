@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import readline from "readline/promises";
 import dotenv from "dotenv";
 import fs from "fs";
+import { loadMcpConfig } from "./utils/mcpUtils.js";
 
 
 dotenv.config(); // load environment variables from .env
@@ -22,52 +23,39 @@ class MCPClient {
     this.anthropic = new Anthropic({
       apiKey: ANTHROPIC_API_KEY,
     });
-
-    this.client = new Client({ name: "mcp-client-cli", version: "1.0.0" });
-    this.stidoClientTransport = null;
-    
+    this.servers = new Map();
     this.tools = [];
-    this.toolsServerMap = new Map(); // Map to store tools and their server
   }
 
   // The mcp server is like:
   async connectToServer(serverName, mcpServerConfig) {
     try {
-      // Initialize transport and connect to server
-      this.stidoClientTransport = new StdioClientTransport({
+      const client = new Client({ name: serverName });
+      const transport = new StdioClientTransport({
         command: mcpServerConfig.command,
         args: mcpServerConfig.args,
       });
 
-      // Connect!
-      console.log("Connecting to server: " + serverName + ", server config: " + JSON.stringify(mcpServerConfig, null, 2));
-      await this.client.connect(this.stidoClientTransport);
-      console.log("Connected.");
+      await client.connect(transport);
+      const toolsResult = await client.listTools();
+      const tools = toolsResult.tools;
+
+      this.servers.set(serverName, {
+        client: client,
+        transport: transport,
+        tools: tools,
+      });
+
+      // Store tools
+      for (const tool of tools) {
+        if (!this.tools.some((t) => t.name === tool.name)) {
+          console.log("New tool found: " + JSON.stringify(tool, null, 2)); 
+          this.tools.push("@" + serverName + "/" + tool.name);
+        }
+      }
     } catch (e) {
       console.log("Failed to connect to MCP server: ", e);
       throw e;
-    }
-  }
-
-  async detectNewTools() {
-    // List available tools in current server
-    const toolsResult = await this.client.listTools();
-    const currentServerTools = toolsResult.tools.map((tool) => {
-      return {
-        name: tool.name,
-        description: tool.description,
-        input_schema: tool.inputSchema,
-      };
-    });
-
-    // Check current tools list
-    // If the tool is already in the list, skip adding it
-    for (const tool of currentServerTools) {
-      if (!this.tools.some((t) => t.name === tool.name)) {
-        console.log("New tool detected: " + JSON.stringify(tool, null, 2)); 
-        this.tools.push(tool);
-        this.toolsServerMap.set(tool.name, this.currentServerName); // Map tool to server
-      }
     }
   }
 
@@ -164,39 +152,23 @@ class MCPClient {
 }
 
 async function main() {
-  let mcpServers = [];
-
-  // Read mcpServers from JSON `mcp_config.json` file
+  let mcpClient;
   try {
-    const mcpConfig = JSON.parse(
-      await fs.promises.readFile("mcp_config.json", "utf-8"),
-    );
-    console.log("MCP Config: ", JSON.stringify(mcpConfig, null, 2));
-
-    mcpServers = mcpConfig.mcpServers;
-    if (!mcpServers || mcpServers.length === 0) {
-      throw new Error("No MCP servers found.");
-    }
-  } catch (e) {
-    console.error("Failed to read mcp_config.json: ", e);
-    process.exit(1);
-  }
-
-  const mcpClient = new MCPClient();
-  try {
-    for (let mcpServer in mcpServers) {
-      console.log("Connecting to MCP server: ", mcpServer);
-      
-      const mcpServerConfig = mcpServers[mcpServer];
-      console.log("Server config: ", mcpServerConfig);
-
-      await mcpClient.connectToServer(mcpServer, mcpServerConfig);
-      await mcpClient.detectNewTools();
+    const mcpServerConfigs = await loadMcpConfig();
+    
+    // Initialize MCP client
+    mcpClient = new MCPClient();
+    for (let mcpServerConfig in mcpServerConfigs) {
+      const serverConfig = mcpServerConfigs[mcpServerConfig];
+      await mcpClient.connectToServer(mcpServerConfig, serverConfig);
     }
     
     await mcpClient.chatLoop();
+  } catch (e) {
+    console.error("Error:", e.message);
+    process.exit(1);
   } finally {
-    await mcpClient.cleanup();
+    if (mcpClient) await mcpClient.cleanup();
     process.exit(0);
   }
 }
