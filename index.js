@@ -30,7 +30,7 @@ class MCPClient {
   // The mcp server is like:
   async connectToServer(serverName, mcpServerConfig) {
     try {
-      const client = new Client({ name: serverName });
+      const client = new Client({ name: serverName, version: "0.0.1" });
       const transport = new StdioClientTransport({
         command: mcpServerConfig.command,
         args: mcpServerConfig.args,
@@ -129,7 +129,7 @@ class MCPClient {
       console.log("\nChat loop started.");
       console.log("Available tools: ");
       this.tools.forEach((tool) => {
-        console.log(`${tool.name}: ${tool.description}`);
+        console.log(JSON.stringify(tool, null, 2));
       });
 
       console.log("\nType your queries or 'quit' to exit.");
