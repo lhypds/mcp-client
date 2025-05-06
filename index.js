@@ -87,8 +87,15 @@ class MCPClient {
         const toolName = content.name;
         const toolArgs = content.input;
 
-        const result = await this.client.callTool({
-          name: toolName,
+        const serverName = toolName.split("/")[0].substring(1); // Remove '@'
+        const serverToolName = toolName.split("/")[1];
+        const server = this.servers.get(serverName);
+        if (!server) {
+          throw new Error(`Server ${serverName} not found`);
+        } 
+
+        const result = await server.client.callTool({
+          name: serverToolName,
           arguments: toolArgs,
         });
 
