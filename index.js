@@ -92,7 +92,7 @@ class MCPClient {
         const server = this.servers.get(serverName);
         if (!server) {
           throw new Error(`Server ${serverName} not found`);
-        } 
+        }
 
         const result = await server.client.callTool({
           name: serverToolName,
@@ -101,7 +101,7 @@ class MCPClient {
 
         toolResults.push(result);
         finalText.push(
-          `[Calling tool ${toolName} with args ${JSON.stringify(toolArgs)}]`,
+          `[Calling tool ${serverToolName} with args ${JSON.stringify(toolArgs)}]`,
         );
 
         // Continue conversation with tool results
